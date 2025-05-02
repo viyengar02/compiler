@@ -173,6 +173,22 @@ void Lexer::parseLine(std::string &line)
         if (auto sep_iter = seps.find(*iter); 
             sep_iter != seps.end())
         {
+            if (sep_iter->second == Token::TokenType::TOKEN_MINUS) {
+                // Check if the '-' is part of a negative number
+                auto next_iter = iter + 1;
+                std::string number_str;
+            
+                // build the number string (digits or floats using '.')
+                while (next_iter != line.end() && (isdigit(*next_iter) || *next_iter == '.')) {
+                    number_str.push_back(*next_iter);
+                    next_iter++;
+                }
+            
+                // if valid number, skip pushing '-' as a separate token
+                if (!number_str.empty() && (isType<int>(number_str) || isType<float>(number_str))) {
+                    continue;
+                }
+            }
             std::string literal = cur_token_str;
             Token::TokenType type = sep_iter->second;
             Token _tok(type, literal, cur_line);
@@ -184,6 +200,8 @@ void Lexer::parseLine(std::string &line)
 
         // (3) parse the token
         auto next = iter + 1;
+        auto prev = findPrevNonEmptyChar(iter, line.begin());
+        
         while (next != line.end())
         {
             auto next_sep_check = seps.find(*next);
@@ -199,13 +217,21 @@ void Lexer::parseLine(std::string &line)
 
         if (isType<int>(cur_token_str))
         {
+      		// TODO: add negative number functionality
+      	    if(*prev == '-'){
+          		cur_token_str = cur_token_str.insert(0, "-");
+         		}
             Token::TokenType type = Token::TokenType::TOKEN_INT;
             Token _tok(type, cur_token_str, cur_line);
+
             toks_per_line.push(_tok);
             continue;
         }
         else if (isType<float>(cur_token_str))
         {
+            if(*prev == '-'){
+          		cur_token_str = cur_token_str.insert(0, "-");
+         		}
             Token::TokenType type = Token::TokenType::TOKEN_FLOAT;
             Token _tok(type, cur_token_str, cur_line);
             toks_per_line.push(_tok);

@@ -10,7 +10,8 @@ int func2(int x, int y)
 
 int main()
 {
-    int a = 0;
+    int a; 
+    a = 0;
     int array[5] = {0, 7, 8, 10, -5};
 
     a = func1(array[1]) + 3;

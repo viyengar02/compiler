@@ -189,85 +189,84 @@ void Parser::parseStatement(std::string &cur_func_name,
 
 std::unique_ptr<Statement> Parser::parseAssnStatement()
 {
-    // Allocating new variables
+    
     if (isTokenTypeKeyword(cur_token))
     {
         Token type_token = cur_token;
 
-        advanceTokens();
-        if (auto [already_defined, type] = isVarAlreadyDefined(cur_token);
-            already_defined)
-        {
-            std::cerr << "[Error] Re-definition of "
-                      << cur_token.getLiteral() << "\n";
+        advanceTokens(); 
+        
+     
+        if (auto [already_defined, type] = isVarAlreadyDefined(cur_token); already_defined) {
+            std::cerr << "[Error] Re-definition of " << cur_token.getLiteral() << "\n";
             std::cerr << "[Line] " << cur_token.getLine() << "\n";
             exit(0);
         }
 
-        bool is_array = (next_token.isTokenLBracket()) ? 
-                        true : false;
+        bool is_array = (next_token.isTokenLBracket()) ? true : false;
+        recordLocalVars(cur_token, type_token, is_array); 
 
-        recordLocalVars(cur_token, type_token, is_array);
-
-        std::unique_ptr<Expression> iden =
+        std::unique_ptr<Expression> iden = 
             std::make_unique<LiteralExpression>(cur_token);
 
-	std::unique_ptr<Expression> expr;
-        if (!is_array)
-        {
-            advanceTokens();
-            assert(cur_token.isTokenEqual());
+        std::unique_ptr<Expression> expr;
 
-            advanceTokens();
-            expr = parseExpression();
-        }
-        else
-        {
-            expr = parseArrayExpr();
-        }
-	
-        std::unique_ptr<Statement> statement = 
-            std::make_unique<AssnStatement>(iden, expr);
+        if (!is_array) {
+            advanceTokens(); 
 
-        return statement;
+            
+            if (cur_token.isTokenEqual()) {
+                advanceTokens(); 
+                expr = parseExpression(); 
+            } else {
+                
+                std::string default_val;
+                Token::TokenType default_type;
+                if (type_token.isTokenDesInt()) {
+                    default_val = "0";
+                    default_type = Token::TokenType::TOKEN_INT;
+                } else if (type_token.isTokenDesFloat()) {
+                    default_val = "0.0";
+                    default_type = Token::TokenType::TOKEN_FLOAT;
+                } else {
+                    std::cerr << "[Error] Unsupported type for default initialization\n";
+                    exit(0);
+                }
+                Token default_token(default_type, default_val, cur_token.line);
+                expr = std::make_unique<LiteralExpression>(default_token);
+            }
+        } else {
+            expr = parseArrayExpr(); 
+        }
+
+        return std::make_unique<AssnStatement>(iden, expr);
     }
     else
     {
         auto [already_defined, type] = isVarAlreadyDefined(cur_token);
-        if (!already_defined)
-        {
-            std::cerr << "[Error] Undefined variable of "
-                      << cur_token.getLiteral() << "\n";
+        if (!already_defined) {
+            std::cerr << "[Error] Undefined variable " << cur_token.getLiteral() << "\n";
             std::cerr << "[Line] " << cur_token.getLine() << "\n";
             exit(0);
         }
 
         cur_expr_type = ValueType::Type::MAX;
         auto iden = parseExpression();
-	
-        assert(cur_token.isTokenEqual());
-        advanceTokens();
+        
+        assert(cur_token.isTokenEqual()); 
+        advanceTokens(); 
 
-	std::unique_ptr<Expression> expr;
-        if (type == ValueType::Type::INT_ARRAY || 
-            type == ValueType::Type::FLOAT_ARRAY)
-        {
-            cur_expr_type = (type == ValueType::Type::INT_ARRAY)
-                            ? type = ValueType::Type::INT
-                            : type = ValueType::Type::FLOAT;
-            
-	}
-        else
-        {
+        if (type == ValueType::Type::INT_ARRAY || type == ValueType::Type::FLOAT_ARRAY) {
+            cur_expr_type = (type == ValueType::Type::INT_ARRAY) ? 
+                            ValueType::Type::INT : 
+                            ValueType::Type::FLOAT;
+        } else {
             cur_expr_type = type;
         }
 
-        expr = parseExpression();
+        auto expr = parseExpression(); 
         
-        std::unique_ptr<Statement> statement = 
-            std::make_unique<AssnStatement>(iden, expr);
-
-        return statement;
+        return std::make_unique<AssnStatement>(iden, expr);
     }
 }
 
@@ -692,20 +691,56 @@ std::unique_ptr<Expression> Parser::parseTerm(
     return left;
 }
 
-// Deal with () here
 std::unique_ptr<Expression> Parser::parseFactor()
 {
     std::unique_ptr<Expression> left;
 
-    if (cur_token.isTokenLP())
-    {
+    // unary plus / unary minus 
+    if (cur_token.isTokenPlus() || cur_token.isTokenMinus()) {
+        Expression::ExpressionType expr_type;
+        Token new_token;
+
+        if (cur_token.isTokenPlus()) {
+            expr_type = Expression::ExpressionType::PLUS;
+        }
+        else {
+            expr_type = Expression::ExpressionType::MINUS;
+        }
+        
+        if (cur_expr_type == ValueType::Type::INT) {
+            std::string literal = "0";
+            new_token = Token(Token::TokenType::TOKEN_INT, literal);
+        }
+        else {
+            std::string literal = "0.0";
+            new_token = Token(Token::TokenType::TOKEN_FLOAT, literal);
+        }
+
+        left = std::make_unique<LiteralExpression>(new_token);
+        advanceTokens();
+
+        std::unique_ptr<Expression> right;
+        if (cur_token.isTokenInt() || cur_token.isTokenFloat()) {
+            right = std::make_unique<LiteralExpression>(cur_token);
+            advanceTokens();  
+        }
+        else {
+            right = parseFactor();
+        }
+        
+        left = std::make_unique<ArithExpression>(left, right, expr_type);
+        return left;
+    }
+
+    // Recursively parse sub-expression 
+    if (cur_token.isTokenLP()) {
         advanceTokens();
         left = parseExpression();
         assert(cur_token.isTokenRP()); // Error checking
         advanceTokens();
         return left;
     }
-    
+
     // TODO - add deref in the future
     bool is_index = (next_token.isTokenLBracket()) ?
                     true : false;
