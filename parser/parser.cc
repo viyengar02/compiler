@@ -516,11 +516,62 @@ std::unique_ptr<Statement> Parser::parseIfStatement(std::string&
     return if_statement;
 }
 
-std::unique_ptr<Statement> Parser::parseForStatement(std::string& 
+std::unique_ptr<Statement> Parser::parseForStatement(std::string&
                                                      parent_func_name)
 {
-    return nullptr;
-}
+    std::unordered_map<std::string,ValueType::Type>block_local_vars;
+    local_vars_tracker.push_back(&block_local_vars);
+
+    advanceTokens();
+    assert(cur_token.isTokenLP());
+
+    advanceTokens();
+    auto start = parseAssnStatement();
+
+    advanceTokens();
+    auto end = parseCondition();
+
+    advanceTokens();
+    auto step = parseAssnStatement();
+
+    advanceTokens();
+    assert(cur_token.isTokenLBrace());
+
+    std::vector<std::shared_ptr<Statement>> block;
+    while (true)
+    {
+        advanceTokens();
+        if (cur_token.isTokenRBrace())
+            break;
+
+        parseStatement(parent_func_name, block);
+        // We just finished an if/for statement
+        if (block.back()->isStatementIf() ||
+            block.back()->isStatementFor())
+        {
+            // This RBrace is from the statement,
+            // should not terminate.
+            assert(cur_token.isTokenRBrace());
+        }
+        else
+        {
+            if (cur_token.isTokenRBrace())
+                break;
+        }
+    }
+    assert(cur_token.isTokenRBrace());
+    local_vars_tracker.pop_back();
+
+    std::unique_ptr<Statement> for_statement =
+        std::make_unique<ForStatement>(start,
+                                      end,
+                                      step,
+                                      block,
+                                      block_local_vars);
+   
+   
+    return for_statement;
+
 
 
 std::unique_ptr<Expression> Parser::parseExpression()
