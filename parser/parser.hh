@@ -434,6 +434,7 @@ class Statement
         NORMAL_CALL_STATEMENT,
         IF_STATEMENT,
         FOR_STATEMENT,
+        WHILE_STATEMENT,
         ILLEGAL
     };
 
@@ -458,6 +459,7 @@ class Statement
     }
     bool isStatementIf() { return type == StatementType::IF_STATEMENT; }
     bool isStatementFor() { return type == StatementType::FOR_STATEMENT; }
+    bool isStatementWhile() { return type == StatementType::WHILE_STATEMENT; }
 };
 
 class AssnStatement : public Statement
@@ -738,6 +740,33 @@ class IfStatement : public Statement
     auto &getNotTakenBlock() { return not_taken_block; }
     auto getTakenBlockVars() { return &taken_local_vars; }
     auto getNotTakenBlockVars() { return &not_taken_local_vars; }
+
+    void printStatement() override;
+};
+
+class WhileStatement : public Statement
+{    
+  protected:
+    std::shared_ptr<Condition> condition;
+    std::vector<std::shared_ptr<Statement>> body;
+    std::unordered_map<std::string, ValueType::Type> local_vars;
+
+  public:
+    WhileStatement(std::unique_ptr<Condition> &&_condition,
+                 std::vector<std::shared_ptr<Statement>> &_body,
+                 std::unordered_map<std::string, 
+                                    ValueType::Type> &_local_vars)
+    {
+        type = StatementType::WHILE_STATEMENT;
+        
+        condition = std::move(_condition);
+        body = std::move(_body);
+        local_vars = _local_vars;
+    }
+
+    auto getCondition() { return condition.get(); }
+    auto &getBody() { return body; }
+    auto getLocalVars() { return &local_vars; }
 
     void printStatement() override;
 };
@@ -1063,6 +1092,7 @@ class Parser
     std::unique_ptr<Condition> parseCondition();
     std::unique_ptr<Statement> parseIfStatement(std::string&);
     std::unique_ptr<Statement> parseForStatement(std::string&);
+    std::unique_ptr<Statement> parseWhileStatement(std::string&);
 
     std::unique_ptr<Expression> parseExpression();
     std::unique_ptr<Expression> parseTerm(

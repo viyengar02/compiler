@@ -135,10 +135,16 @@ void Parser::parseStatement(std::string &cur_func_name,
         codes.push_back(std::move(code));
         return;
     }
-
+    if (cur_token.isTokenWhile()) {
+        auto code = parseWhileStatement(cur_func_name);
+        codes.push_back(std::move(code));
+        return;
+    }
     if (cur_token.isTokenFor())
     {
-        assert(false && "For statements are not supported yet!");
+        auto code = parseForStatement(cur_func_name);
+        codes.push_back(std::move(code));
+        return;
     }
 
     // is it a function call?
@@ -571,6 +577,45 @@ std::unique_ptr<Statement> Parser::parseForStatement(std::string&
    
    
     return for_statement;
+}
+
+std::unique_ptr<Statement> Parser::parseWhileStatement(std::string& parent_func_name) 
+{
+    std::unordered_map<std::string, ValueType::Type> block_local_vars;
+    local_vars_tracker.push_back(&block_local_vars);
+
+    advanceTokens(); // Eat 'while'
+    assert(cur_token.isTokenLP());
+
+    advanceTokens(); // Eat '('
+    auto condition = parseCondition();
+    
+    assert(cur_token.isTokenRP());  // Verify ')'
+    advanceTokens(); // Eat ')'
+
+    assert(cur_token.isTokenLBrace());
+    advanceTokens(); // Eat '{'
+
+    std::vector<std::shared_ptr<Statement>> body;
+    while (true) {
+        if (cur_token.isTokenRBrace()) {
+            break;
+        }
+
+        parseStatement(parent_func_name, body);
+        
+        // Only advance if we haven't hit the RBrace yet
+        if (!cur_token.isTokenRBrace()) {
+            advanceTokens();
+        }
+    }
+    
+    assert(cur_token.isTokenRBrace());
+    local_vars_tracker.pop_back();
+
+    return std::make_unique<WhileStatement>(std::move(condition), body, block_local_vars);
+}
+
 
 
 
@@ -937,6 +982,21 @@ void ForStatement::printStatement()
     std::cout << "  }\n";
     std::cout << "  }\n";
 
+}
+
+void WhileStatement::printStatement() 
+{
+    std::cout << "  {\n";
+    std::cout << "  [While Statement] \n";
+    std::cout << "  [Condition]\n";
+    condition->printStatement();
+    std::cout << "  [Body]\n";
+    std::cout << "  {\n";
+    for (auto &stmt : body) {
+        stmt->printStatement();
+    }
+    std::cout << "  }\n";
+    std::cout << "  }\n";
 }
 
 void Condition::printStatement()
