@@ -33,6 +33,11 @@ Parser::Parser(const char* fn) : lexer(new Lexer(fn))
 
 void Parser::advanceTokens()
 {
+    /*
+    // For debugging:
+    std::cerr << "Current Token " << cur_token.getLiteral()
+              << " (Line: " << cur_token.getLine() << ")" << std::endl;
+    */
     cur_token = next_token;
     lexer->getToken(next_token);
 }
@@ -135,14 +140,15 @@ void Parser::parseStatement(std::string &cur_func_name,
         codes.push_back(std::move(code));
         return;
     }
-    if (cur_token.isTokenWhile()) {
-        auto code = parseWhileStatement(cur_func_name);
-        codes.push_back(std::move(code));
-        return;
-    }
+    
     if (cur_token.isTokenFor())
     {
         auto code = parseForStatement(cur_func_name);
+        codes.push_back(std::move(code));
+        return;
+    }
+    if (cur_token.isTokenWhile()) {
+        auto code = parseWhileStatement(cur_func_name);
         codes.push_back(std::move(code));
         return;
     }
@@ -546,14 +552,17 @@ std::unique_ptr<Statement> Parser::parseForStatement(std::string&
     std::vector<std::shared_ptr<Statement>> block;
     while (true)
     {
+        
         advanceTokens();
         if (cur_token.isTokenRBrace())
             break;
 
         parseStatement(parent_func_name, block);
         // We just finished an if/for statement
+    
         if (block.back()->isStatementIf() ||
-            block.back()->isStatementFor())
+            block.back()->isStatementFor() || 
+            block.back()->isStatementWhile())
         {
             // This RBrace is from the statement,
             // should not terminate.
@@ -564,7 +573,9 @@ std::unique_ptr<Statement> Parser::parseForStatement(std::string&
             if (cur_token.isTokenRBrace())
                 break;
         }
+                
     }
+
     assert(cur_token.isTokenRBrace());
     local_vars_tracker.pop_back();
 
@@ -592,11 +603,12 @@ std::unique_ptr<Statement> Parser::parseWhileStatement(std::string& parent_func_
     
     assert(cur_token.isTokenRP());  // Verify ')'
     advanceTokens(); // Eat ')'
-
+    
     assert(cur_token.isTokenLBrace());
-    advanceTokens(); // Eat '{'
+    advanceTokens();
 
     std::vector<std::shared_ptr<Statement>> body;
+    /*
     while (true) {
         if (cur_token.isTokenRBrace()) {
             break;
@@ -609,14 +621,36 @@ std::unique_ptr<Statement> Parser::parseWhileStatement(std::string& parent_func_
             advanceTokens();
         }
     }
+    */
+   while (true)
+    {
+        if (cur_token.isTokenRBrace())
+            break;
+
+        parseStatement(parent_func_name, body);
+        // We just finished an if/for statement
+    
+        if (body.back()->isStatementIf() ||
+            body.back()->isStatementFor() || 
+            body.back()->isStatementWhile())
+        {
+            // This RBrace is from the statement,
+            // should not terminate.
+            assert(cur_token.isTokenRBrace());
+        }
+        else
+        {
+            if (cur_token.isTokenRBrace())
+                break;
+        }
+        advanceTokens();
+    }
     
     assert(cur_token.isTokenRBrace());
     local_vars_tracker.pop_back();
 
     return std::make_unique<WhileStatement>(std::move(condition), body, block_local_vars);
 }
-
-
 
 
 std::unique_ptr<Expression> Parser::parseExpression()
